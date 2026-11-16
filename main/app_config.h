@@ -34,10 +34,18 @@
 // Holding the BOOT button this long opens the setup hotspot again.
 #define LONG_PRESS_MS 3000
 
+// ---- Album art color correction (the panel's LEDs are red-heavy and look too punchy) ----
+// ART_SATURATION: 1.0 = unchanged, lower = paler. ART_GAIN_*: per-channel brightness (<= 1.0);
+// lowering red (and a little green) relative to blue cools the picture down.
+#define ART_SATURATION 0.78f
+#define ART_GAIN_R 0.84f
+#define ART_GAIN_G 0.94f
+#define ART_GAIN_B 1.00f
+
 // ---- Over-the-air updates ----
 // Increase FW_BUILD with every release you publish; boards only install a build that is higher
 // than the one they are running.
-#define FW_BUILD 5
+#define FW_BUILD 6
 // Small JSON file in this (public) repo's ota/ folder: {"build": N, "url": "https://.../led-proj-N.bin"}
 #define OTA_MANIFEST_URL "https://raw.githubusercontent.com/EgozS/spotify-record-led-firmware/main/ota/manifest.json"
 #define OTA_FIRST_CHECK_S 40          // wait this long after Wi-Fi comes up before the first check

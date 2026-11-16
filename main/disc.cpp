@@ -1,5 +1,7 @@
 #include "disc.h"
 
+#include "app_config.h"
+
 #include <math.h>
 #include <algorithm>
 #include <stdlib.h>
@@ -83,6 +85,18 @@ void disc_set_art(const uint8_t *art) {
     }
 }
 
+// Pales the art a little and cools it (see app_config.h): the panel is red-heavy and over-punchy.
+static inline void correct_color(uint8_t *c) {
+    float r = c[0], g = c[1], b = c[2];
+    float lum = 0.299f * r + 0.587f * g + 0.114f * b;
+    r = (lum + (r - lum) * ART_SATURATION) * ART_GAIN_R;
+    g = (lum + (g - lum) * ART_SATURATION) * ART_GAIN_G;
+    b = (lum + (b - lum) * ART_SATURATION) * ART_GAIN_B;
+    c[0] = (uint8_t)(r < 0 ? 0 : (r > 255 ? 255 : r));
+    c[1] = (uint8_t)(g < 0 ? 0 : (g > 255 ? 255 : g));
+    c[2] = (uint8_t)(b < 0 ? 0 : (b > 255 ? 255 : b));
+}
+
 static inline void sample_art(float u, float v, uint8_t *rgb) {
     if (u < 0) u = 0;
     if (v < 0) v = 0;
@@ -126,6 +140,7 @@ void disc_render(float angle, uint8_t scale, uint8_t *out) {
                 uint8_t lab[3];
                 if (s_has_art) {
                     sample_art(CX + rx * k, CY + ry * k, lab);
+                    correct_color(lab);
                 } else {
                     // Idle label: Spotify-ish green with a rotating marker dot
                     lab[0] = 20; lab[1] = 150; lab[2] = 70;
