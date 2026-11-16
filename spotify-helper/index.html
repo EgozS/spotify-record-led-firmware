@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LED Disc – Spotify link</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #ffffff; --ink: #1d1b16; --mute: #6f6a5e; --line: #ddd7c8;
+    --acc: #1db954; --acc-ink: #04150a; --warn: #b4361e; --code: #efebe0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121410; --card: #1c1f1a; --ink: #f1efe8; --mute: #9b9a8e; --line: #34382f; --warn: #ff8a73; --code: #101310; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 32rem; margin: 0 auto; padding: 28px 16px 56px; }
+  .disc { width: 64px; height: 64px; border-radius: 50%; margin-bottom: 14px;
+    background: radial-gradient(circle at 50% 50%, var(--acc) 0 34%, #111 35% 100%); box-shadow: 0 0 0 2px var(--line); }
+  h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 .4rem; }
+  p.lead { color: var(--mute); margin: 0 0 1.4rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  ol { margin: 0 0 1rem; padding-left: 1.2rem; } li { margin-bottom: .35rem; }
+  button { font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 14px 18px; cursor: pointer; width: 100%; }
+  button.primary { background: var(--acc); color: var(--acc-ink); }
+  button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 10px; }
+  textarea { width: 100%; min-height: 8rem; font: .8rem/1.4 ui-monospace, "SF Mono", Consolas, monospace; word-break: break-all;
+    color: var(--ink); background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 12px; resize: none; }
+  .note { color: var(--mute); font-size: .88rem; margin-top: 10px; }
+  .err { color: var(--warn); font-weight: 600; }
+  .ok { color: var(--acc); font-weight: 700; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="disc" aria-hidden="true"></div>
+  <h1>Link your Spotify to the LED disc</h1>
+  <p class="lead">One quick login so the disc can show the album art of whatever you are playing.</p>
+
+  <section id="start" class="card">
+    <ol>
+      <li>Tap the green button and log in to Spotify.</li>
+      <li>Tap <b>Agree</b> to let the disc see what is playing. It can only read playback — it cannot control anything.</li>
+      <li>You will come back here and get a code to copy.</li>
+    </ol>
+    <button id="go" class="primary">Connect Spotify</button>
+    <p class="note">Your Spotify password is only ever typed on Spotify's own page.</p>
+  </section>
+
+  <section id="working" class="card" hidden>
+    <p>Getting your code…</p>
+  </section>
+
+  <section id="done" class="card" hidden>
+    <p class="ok">All set. Copy this code:</p>
+    <textarea id="tok" readonly spellcheck="false"></textarea>
+    <button id="copy" class="primary" style="margin-top:10px">Copy code</button>
+    <ol style="margin-top:16px">
+      <li>On your phone, join the Wi-Fi called <b>LED-DISC-SETUP</b>.</li>
+      <li>The setup page opens by itself (if not, open <b>192.168.4.1</b>).</li>
+      <li>Choose your Wi-Fi, type its password and paste the code.</li>
+    </ol>
+    <p class="note">Keep this code private: anyone who has it can see what you are listening to. If it ever leaks, remove “LED Disc” under Spotify account → Apps and run this page again.</p>
+  </section>
+
+  <section id="error" class="card" hidden>
+    <p class="err" id="errmsg"></p>
+    <button id="retry" class="secondary">Start again</button>
+  </section>
+</main>
+
+<script>
+(function () {
+  var CLIENT_ID = "0cf3326ab8af4902946e2710cdf0d73c";   // public, not a secret
+  var SCOPES = "user-read-currently-playing user-read-playback-state";
+  var REDIRECT = location.origin + location.pathname;     // this very page; must be registered in the Spotify app
+
+  function $(id) { return document.getElementById(id); }
+  function show(which) {
+    ["start", "working", "done", "error"].forEach(function (s) { $(s).hidden = (s !== which); });
+  }
+  function fail(msg) { $("errmsg").textContent = msg; show("error"); }
+
+  function store(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function drop(k) { try { sessionStorage.removeItem(k); } catch (e) {} }
+
+  function b64url(bytes) {
+    var s = ""; bytes = new Uint8Array(bytes);
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function randomString(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a); }
+
+  async function begin() {
+    if (!window.crypto || !crypto.subtle) { fail("This page must be opened over https in a normal browser."); return; }
+    var verifier = randomString(64), state = randomString(16);
+    var challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+    store("pkce_verifier", verifier); store("pkce_state", state);
+    var q = new URLSearchParams({
+      client_id: CLIENT_ID, response_type: "code", redirect_uri: REDIRECT, scope: SCOPES,
+      state: state, code_challenge_method: "S256", code_challenge: challenge
+    });
+    location.href = "https://accounts.spotify.com/authorize?" + q.toString();
+  }
+
+  async function finish(code, state) {
+    show("working");
+    var verifier = load("pkce_verifier");
+    if (!verifier || state !== load("pkce_state")) { fail("This login link expired. Please start again."); return; }
+    try {
+      var r = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code", code: code, redirect_uri: REDIRECT,
+          client_id: CLIENT_ID, code_verifier: verifier
+        })
+      });
+      var j = await r.json();
+      if (!r.ok || !j.refresh_token) { fail("Spotify said no" + (j.error_description ? ": " + j.error_description : ".") + " Please start again."); return; }
+      drop("pkce_verifier"); drop("pkce_state");
+      $("tok").value = j.refresh_token;
+      show("done");
+    } catch (e) {
+      fail("Could not reach Spotify. Check your internet connection and start again.");
+    }
+  }
+
+  $("go").onclick = begin;
+  $("retry").onclick = function () { history.replaceState(null, "", REDIRECT); show("start"); };
+  $("copy").onclick = function () {
+    var t = $("tok"), b = $("copy");
+    function ok() { b.textContent = "Copied ✓"; setTimeout(function () { b.textContent = "Copy code"; }, 2000); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t.value).then(ok, function () { t.select(); document.execCommand("copy"); ok(); });
+    } else { t.select(); document.execCommand("copy"); ok(); }
+  };
+  $("tok").onfocus = function () { this.select(); };
+
+  var p = new URLSearchParams(location.search);
+  if (p.get("error")) {
+    history.replaceState(null, "", REDIRECT);
+    fail(p.get("error") === "access_denied" ? "You did not agree on the Spotify page. Please start again and tap Agree." : "Spotify returned an error: " + p.get("error"));
+  } else if (p.get("code")) {
+    var code = p.get("code"), st = p.get("state");
+    history.replaceState(null, "", REDIRECT);   // hide the one-time code from the address bar
+    finish(code, st);
+  }
+})();
+</script>
+</body>
+</html>

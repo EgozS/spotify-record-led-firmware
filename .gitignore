@@ -1,0 +1,9 @@
+# Build output and fetched components (restored by `idf.py build` from dependencies.lock)
+build/
+managed_components/
+sdkconfig.old
+
+# Secrets - never commit
+main/secrets.h
+main/secrets.h.bak
+*.bak
