@@ -1,6 +1,6 @@
 {
-  "build": 4,
-  "url": "https://raw.githubusercontent.com/EgozS/spotify-record-led-firmware/main/ota/led-proj-4.bin",
-  "sha256": "0394feeb2dc3f7326847d877fb02ca143f2b9fddb24330267f6355afe2f26245",
+  "build": 5,
+  "url": "https://raw.githubusercontent.com/EgozS/spotify-record-led-firmware/main/ota/led-proj-5.bin",
+  "sha256": "55781ee358f86e1d1744a42411106365e87b019c152e6128fbe6fc9518909215",
   "size": 1075312
 }
