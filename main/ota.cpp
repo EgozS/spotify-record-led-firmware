@@ -194,7 +194,12 @@ static void ota_task(void *) {
         if (net_get_state().wifi_connected && !net_get_state().setup_mode) {
             int build = 0;
             char url[256];
-            if (fetch_manifest(&build, url, sizeof(url))) {
+            bool got = false;
+            for (int attempt = 0; attempt < 3 && !got; attempt++) {  // a single GitHub hiccup (503) is common
+                if (attempt) vTaskDelay(pdMS_TO_TICKS(6000));
+                got = fetch_manifest(&build, url, sizeof(url));
+            }
+            if (got) {
                 ESP_LOGI(TAG, "Running build %d, latest published build %d", FW_BUILD, build);
                 if (build > FW_BUILD) {
                     ESP_LOGW(TAG, "Installing build %d from %s", build, url);
@@ -211,7 +216,7 @@ static void ota_task(void *) {
                     wait_s = OTA_RETRY_AFTER_FAIL_S;
                 }
             } else {
-                wait_s = OTA_RETRY_AFTER_FAIL_S;
+                wait_s = OTA_RETRY_MANIFEST_S;
             }
         }
         vTaskDelay(pdMS_TO_TICKS(wait_s * 1000));

@@ -278,8 +278,9 @@ extern "C" void app_main(void) {
 
         if (now_us - last_report_us > 10000000) {
             last_report_us = now_us;
-            printf("[status] wifi=%d track=%d playing=%d art=%d days=%d heap=%u | max ms: frame=%lld state=%lld render=%lld draw=%lld flip=%lld\n",
-                   st.wifi_connected, st.has_track, st.playing, st.has_art, days, (unsigned)esp_get_free_heap_size(),
+            printf("[status] build=%d wifi=%d track=%d playing=%d art=%d days=%d heap=%u internal=%u | max ms: frame=%lld state=%lld render=%lld draw=%lld flip=%lld\n",
+                   FW_BUILD, st.wifi_connected, st.has_track, st.playing, st.has_art, days,
+                   (unsigned)esp_get_free_heap_size(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                    win_max_frame / 1000, win_max_state / 1000, win_max_render / 1000, win_max_draw / 1000,
                    win_max_flip / 1000);
             win_max_frame = win_max_state = win_max_render = win_max_draw = win_max_flip = 0;

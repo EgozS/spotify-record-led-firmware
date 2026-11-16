@@ -37,9 +37,10 @@
 // ---- Over-the-air updates ----
 // Increase FW_BUILD with every release you publish; boards only install a build that is higher
 // than the one they are running.
-#define FW_BUILD 2
+#define FW_BUILD 3
 // Small JSON file in this (public) repo's ota/ folder: {"build": N, "url": "https://.../led-proj-N.bin"}
 #define OTA_MANIFEST_URL "https://raw.githubusercontent.com/EgozS/spotify-record-led-firmware/main/ota/manifest.json"
 #define OTA_FIRST_CHECK_S 40          // wait this long after Wi-Fi comes up before the first check
 #define OTA_CHECK_INTERVAL_S (6 * 3600)
-#define OTA_RETRY_AFTER_FAIL_S 900
+#define OTA_RETRY_MANIFEST_S 120      // after the manifest could not be read (3 tries in a row)
+#define OTA_RETRY_AFTER_FAIL_S 900    // after a failed install

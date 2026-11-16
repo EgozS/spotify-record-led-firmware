@@ -53,10 +53,15 @@ if len(data) > 0x1A0000:
 for name in ("secrets.h", "secrets.h.bak"):
     path = os.path.join(ROOT, "main", name)
     if os.path.exists(path):
-        for val in re.findall(r'#define\s+\w+\s+"([^"]+)"', open(path, encoding="utf-8").read()):
-            if len(val) >= 6 and val.encode() in data:
-                fail("the firmware contains a value from main/%s (%r...). Do a clean rebuild without secrets.h."
-                     % (name, val[:4]))
+        for key, val in re.findall(r'#define\s+(\w+)\s+"([^"]+)"', open(path, encoding="utf-8").read()):
+            if "CLIENT_ID" in key:
+                continue  # the Spotify Client ID is public and belongs in the firmware
+            b = val.encode()
+            # Long values: any occurrence is suspicious. Short ones (e.g. a purely numeric password) also occur
+            # inside ordinary lookup tables of the C library, so only a stand-alone NUL-delimited string counts.
+            if (len(val) >= 16 and b in data) or (b"\x00" + b + b"\x00") in data:
+                fail("the firmware contains the value of %s from main/%s. Do a clean rebuild without secrets.h."
+                     % (key, name))
 
 api = "https://api.github.com/repos/%s/contents/" % REPO
 
