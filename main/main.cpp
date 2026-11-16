@@ -9,13 +9,22 @@
 #include "esp_heap_caps.h"
 #include "hub75.h"
 
+#include "app_config.h"
+#include "config.h"
+#include "counter.h"
 #include "disc.h"
 #include "net.h"
+#include "ota.h"
+#include "portal.h"
 #include "screen.h"
 
 // Rotary encoder (relative: reports +/- steps)
 #define CLK_PIN GPIO_NUM_45
 #define DT_PIN  GPIO_NUM_46
+
+// The board's built-in BOOT button (GPIO 0): click = switch record / counter,
+// hold = reopen the setup hotspot. (Never hold it while powering on: that enters download mode.)
+#define BTN_PIN GPIO_NUM_0
 
 // One level change per TRANSITIONS_PER_STEP valid quadrature transitions
 // (a typical detent = 4 transitions). Tune if the knob feels too slow / fast.
@@ -113,10 +122,23 @@ extern "C" void app_main(void) {
     esp_timer_create(&targs, &timer);
     esp_timer_start_periodic(timer, 500);  // microseconds
 
+    gpio_config_t btn_conf = {};
+    btn_conf.pin_bit_mask = 1ULL << BTN_PIN;
+    btn_conf.mode = GPIO_MODE_INPUT;
+    btn_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    btn_conf.intr_type = GPIO_INTR_DISABLE;
+    gpio_config(&btn_conf);
+
+    AppConfig cfg;
+    config_load(&cfg);
+
     // 3. Disc renderer + network
     disc_init();
     vTaskPrioritySet(nullptr, 10);  // render loop outranks the network task
+    printf("Firmware build %d\n", FW_BUILD);
     net_start();
+    ota_start();
+    bool boot_confirmed = false;
 
     int level = kStartLevel;
     Level lv = level_at(level);
@@ -130,6 +152,18 @@ extern "C" void app_main(void) {
 
     // 4. Main loop: knob -> brightness level, network state -> spinning disc
     int64_t win_max_frame = 0, win_max_state = 0, win_max_render = 0, win_max_draw = 0, win_max_flip = 0;
+
+    // View selection: the record while music plays, the counter otherwise (after a while);
+    // a BOOT-button click overrides this until playback starts or stops.
+    enum Override { OV_AUTO, OV_COUNTER, OV_RECORD };
+    Override override_view = OV_AUTO;
+    bool prev_playing = false;
+    int64_t idle_since_us = esp_timer_get_time();
+    bool btn_down = false, long_fired = false;
+    int64_t btn_down_us = 0;
+    int days = -1;
+    int64_t days_check_us = 0;
+
     while (1) {
         int64_t t_start = esp_timer_get_time();
         // Knob
@@ -174,8 +208,53 @@ extern "C" void app_main(void) {
         }
 
         int64_t t_state = esp_timer_get_time();
-        if (st.setup_mode) {
+        // Playback state -> idle timer; any play/stop change clears a manual override
+        bool playing_now = st.has_track && st.playing;
+        if (playing_now != prev_playing) {
+            prev_playing = playing_now;
+            override_view = OV_AUTO;
+            if (!playing_now) idle_since_us = now_us;
+        }
+        bool auto_counter = !playing_now && (now_us - idle_since_us) >= (int64_t)AUTO_COUNTER_AFTER_S * 1000000;
+        bool show_counter = override_view == OV_COUNTER || (override_view == OV_AUTO && auto_counter);
+
+        // BOOT button: click toggles the view, a long press opens the setup hotspot
+        bool pressed = gpio_get_level(BTN_PIN) == 0;
+        if (pressed && !btn_down) {
+            btn_down = true;
+            long_fired = false;
+            btn_down_us = now_us;
+        } else if (pressed && btn_down && !long_fired && now_us - btn_down_us > (int64_t)LONG_PRESS_MS * 1000) {
+            long_fired = true;
+            printf("BOOT button held: opening setup hotspot\n");
+            portal_start();
+        } else if (!pressed && btn_down) {
+            btn_down = false;
+            if (!long_fired && now_us - btn_down_us > 40000) {
+                override_view = show_counter ? OV_RECORD : OV_COUNTER;
+                show_counter = override_view == OV_COUNTER;
+                printf("BOOT button click: showing %s\n", show_counter ? "counter" : "record");
+            }
+        }
+
+        if (now_us - days_check_us > 1000000) {  // recompute once a second
+            days_check_us = now_us;
+            days = counter_days(TOGETHER_SINCE, cfg.tz_min);
+        }
+
+        // A freshly installed update that has run healthy for 45 s is kept; otherwise the bootloader
+        // reverts to the previous version on the next restart.
+        if (!boot_confirmed && now_us > 45000000) {
+            boot_confirmed = true;
+            ota_confirm_boot();
+        }
+
+        if (st.ota_active) {
+            screen_update_render((uint32_t)(now_us / 1000), st.ota_percent, lv.scale, s_frame);
+        } else if (st.setup_mode) {
             screen_setup_render((uint32_t)(now_us / 1000), lv.scale, s_frame);
+        } else if (show_counter) {
+            screen_counter_render((uint32_t)(now_us / 1000), days, lv.scale, s_frame);
         } else {
             disc_render(angle, lv.scale, s_frame);
         }
@@ -199,8 +278,8 @@ extern "C" void app_main(void) {
 
         if (now_us - last_report_us > 10000000) {
             last_report_us = now_us;
-            printf("[status] wifi=%d track=%d playing=%d art=%d heap=%u | max ms: frame=%lld state=%lld render=%lld draw=%lld flip=%lld\n",
-                   st.wifi_connected, st.has_track, st.playing, st.has_art, (unsigned)esp_get_free_heap_size(),
+            printf("[status] wifi=%d track=%d playing=%d art=%d days=%d heap=%u | max ms: frame=%lld state=%lld render=%lld draw=%lld flip=%lld\n",
+                   st.wifi_connected, st.has_track, st.playing, st.has_art, days, (unsigned)esp_get_free_heap_size(),
                    win_max_frame / 1000, win_max_state / 1000, win_max_render / 1000, win_max_draw / 1000,
                    win_max_flip / 1000);
             win_max_frame = win_max_state = win_max_render = win_max_draw = win_max_flip = 0;

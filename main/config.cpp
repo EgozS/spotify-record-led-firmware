@@ -25,12 +25,15 @@ static bool get_str(nvs_handle_t h, const char *key, char *dst, size_t n) {
 
 bool config_load(AppConfig *c) {
     memset(c, 0, sizeof(*c));
+    c->tz_min = TZ_OFFSET_MIN_DEFAULT;
     nvs_ready();
     nvs_handle_t h;
     if (nvs_open("cfg", NVS_READONLY, &h) == ESP_OK) {
         get_str(h, "ssid", c->ssid, sizeof(c->ssid));
         get_str(h, "pass", c->password, sizeof(c->password));
         get_str(h, "token", c->refresh_token, sizeof(c->refresh_token));
+        int32_t tz;
+        if (nvs_get_i32(h, "tz", &tz) == ESP_OK) c->tz_min = tz;
         nvs_close(h);
     }
 #ifdef WIFI_SSID
@@ -50,7 +53,8 @@ bool config_save(const AppConfig *c) {
     nvs_handle_t h;
     if (nvs_open("cfg", NVS_READWRITE, &h) != ESP_OK) return false;
     bool ok = nvs_set_str(h, "ssid", c->ssid) == ESP_OK && nvs_set_str(h, "pass", c->password) == ESP_OK &&
-              nvs_set_str(h, "token", c->refresh_token) == ESP_OK && nvs_commit(h) == ESP_OK;
+              nvs_set_str(h, "token", c->refresh_token) == ESP_OK && nvs_set_i32(h, "tz", c->tz_min) == ESP_OK &&
+              nvs_commit(h) == ESP_OK;
     nvs_close(h);
     return ok;
 }

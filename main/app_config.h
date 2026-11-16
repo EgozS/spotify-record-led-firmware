@@ -21,3 +21,25 @@
 
 // How long to try the saved Wi-Fi at boot before opening the setup hotspot.
 #define WIFI_CONNECT_TIMEOUT_MS 45000
+
+// The counter shows the days since this fixed date (YYYY-MM-DD).
+#define TOGETHER_SINCE "2025-04-07"
+// Time zone used to decide when the day changes (minutes east of UTC). The setup form
+// replaces this with the phone's own value.
+#define TZ_OFFSET_MIN_DEFAULT 0
+
+// With nothing playing for this long, the disc switches to the counter by itself.
+#define AUTO_COUNTER_AFTER_S 300
+
+// Holding the BOOT button this long opens the setup hotspot again.
+#define LONG_PRESS_MS 3000
+
+// ---- Over-the-air updates ----
+// Increase FW_BUILD with every release you publish; boards only install a build that is higher
+// than the one they are running.
+#define FW_BUILD 2
+// Small JSON file in this (public) repo's ota/ folder: {"build": N, "url": "https://.../led-proj-N.bin"}
+#define OTA_MANIFEST_URL "https://raw.githubusercontent.com/EgozS/spotify-record-led-firmware/main/ota/manifest.json"
+#define OTA_FIRST_CHECK_S 40          // wait this long after Wi-Fi comes up before the first check
+#define OTA_CHECK_INTERVAL_S (6 * 3600)
+#define OTA_RETRY_AFTER_FAIL_S 900

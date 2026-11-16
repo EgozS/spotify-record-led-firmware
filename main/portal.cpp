@@ -49,17 +49,19 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;paddi
 <input id="ssid" name="ssid" autocomplete="off" autocapitalize="none" required value="@@SSID@@">
 <div class="nets" id="nets"></div><small id="scanmsg">Looking for networks...</small></div>
 <div class="field"><label for="pass">Wi-Fi password</label>
-<input id="pass" name="pass" type="password" autocomplete="off"><small>Leave empty for an open network. Use a 2.4 GHz network.</small></div>
+<input id="pass" name="pass" type="password" autocomplete="off"><small>Leave empty for an open network, or to keep the saved password. Use a 2.4 GHz network.</small></div>
 </div>
 <div class="card">
 <div class="field"><label for="token">Spotify code</label>
 @@HELPER@@
-<textarea id="token" name="token" autocomplete="off" autocapitalize="none" spellcheck="false" required></textarea>
+<textarea id="token" name="token" autocomplete="off" autocapitalize="none" spellcheck="false" @@TOKREQ@@ placeholder="@@TOKPH@@"></textarea>
 <small>Paste the code from the Spotify page here.</small></div>
 </div>
+<input type="hidden" id="tz" name="tz" value="0">
 <button class="go" type="submit">Save and connect</button>
 </form>
 <script>
+document.getElementById('tz').value=String(-new Date().getTimezoneOffset());
 fetch('/scan').then(function(r){return r.json()}).then(function(l){
 var n=document.getElementById('nets');document.getElementById('scanmsg').textContent=l.length?'Tap a network to select it.':'No networks found - type the name.';
 l.forEach(function(s){var b=document.createElement('button');b.type='button';b.textContent=s;b.onclick=function(){document.getElementById('ssid').value=s;document.getElementById('pass').focus()};n.appendChild(b)})
@@ -168,6 +170,13 @@ static esp_err_t root_get(httpd_req_t *req) {
     pos = page.find("@@HELPER@@");
     if (pos != std::string::npos) page.replace(pos, 10, helper);
 
+    // A saved Spotify code can stay: the field is only required while there is none.
+    const bool have_token = cfg.refresh_token[0] != 0;
+    pos = page.find("@@TOKREQ@@");
+    if (pos != std::string::npos) page.replace(pos, 10, have_token ? "" : "required");
+    pos = page.find("@@TOKPH@@");
+    if (pos != std::string::npos) page.replace(pos, 9, have_token ? "Leave empty to keep the saved code" : "");
+
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, page.c_str(), page.size());
@@ -229,13 +238,25 @@ static esp_err_t save_post(httpd_req_t *req) {
         got += r;
     }
 
+    AppConfig old;
+    config_load(&old);
     AppConfig cfg = {};
     form_get(body, "ssid", cfg.ssid, sizeof(cfg.ssid));
     form_get(body, "pass", cfg.password, sizeof(cfg.password));
     form_get(body, "token", cfg.refresh_token, sizeof(cfg.refresh_token));
+    char tz[16] = "";
+    form_get(body, "tz", tz, sizeof(tz));
     free(body);
     trim_ends(cfg.ssid);
     strip_spaces(cfg.refresh_token);
+
+    // Empty password with the same network name keeps the saved password; an empty code keeps the saved code.
+    if (!cfg.password[0] && strcmp(cfg.ssid, old.ssid) == 0) strcpy(cfg.password, old.password);
+    if (strlen(cfg.refresh_token) < 20) strcpy(cfg.refresh_token, old.refresh_token);
+
+    // The phone's time zone offset (decides when the counter's day changes).
+    int tzv = tz[0] ? atoi(tz) : old.tz_min;
+    cfg.tz_min = tzv < -840 ? -840 : (tzv > 840 ? 840 : tzv);
 
     if (!cfg.ssid[0] || strlen(cfg.refresh_token) < 20) {
         httpd_resp_set_type(req, "text/html; charset=utf-8");

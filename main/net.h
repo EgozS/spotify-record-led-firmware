@@ -10,6 +10,8 @@ struct NetState {
     bool playing;       // ...and it is actually playing right now
     bool has_art;       // art_version refers to a valid image
     bool setup_mode;    // the setup hotspot is open (needs Wi-Fi / Spotify details)
+    bool ota_active;    // a firmware update is being installed
+    int ota_percent;    // 0..100, -1 unknown
     uint32_t art_version;
 };
 

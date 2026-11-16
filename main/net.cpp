@@ -11,6 +11,7 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_netif_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
@@ -24,6 +25,7 @@
 
 #include "app_config.h"
 #include "config.h"
+#include "ota.h"
 #include "portal.h"
 
 static const char *TAG = "net";
@@ -56,6 +58,12 @@ static void wifi_event_handler(void *, esp_event_base_t base, int32_t id, void *
         ip_event_got_ip_t *ev = (ip_event_got_ip_t *)data;
         ESP_LOGI(TAG, "Wi-Fi connected, IP " IPSTR, IP2STR(&ev->ip_info.ip));
         s_ever_connected = true;
+        static bool sntp_started = false;
+        if (!sntp_started) {  // real clock for the days-together counter
+            sntp_started = true;
+            esp_sntp_config_t sc = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+            esp_netif_sntp_init(&sc);
+        }
         xSemaphoreTake(s_mutex, portMAX_DELAY);
         s_state.wifi_connected = true;
         xSemaphoreGive(s_mutex);
@@ -378,6 +386,8 @@ NetState net_get_state(void) {
     NetState s = s_state;
     xSemaphoreGive(s_mutex);
     s.setup_mode = portal_active();
+    s.ota_active = ota_active();
+    s.ota_percent = ota_percent();
     return s;
 }
 
