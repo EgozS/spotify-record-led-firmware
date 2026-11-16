@@ -47,8 +47,9 @@ static const int kStage1Count = 19;                                   // scale 5
 // (max 15) only after giving the panel its own beefy 5V supply wired directly to its power terminals.
 static const int kMaxStage2Index = 10;
 static const int kNumLevels = 1 + kStage1Count + kMaxStage2Index + 1;
-// Start at the maximum level (brightness 45); the knob only goes down from here.
-static const int kStartLevel = 1 + kStage1Count + kMaxStage2Index;
+// Start one level below the maximum (brightness 32, which looked right on the real panel);
+// one click up reaches the maximum (45).
+static const int kStartLevel = 1 + kStage1Count + kMaxStage2Index - 1;
 
 static Level level_at(int idx) {
     if (idx <= 0) return {0, 0};                                      // off
