@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -75,8 +76,16 @@ def call(method, path, body=None):
         req.add_header("Content-Type", "application/json")
         body = json.dumps(body).encode()
     try:
-        with urllib.request.urlopen(req, body) as r:
-            return json.load(r)
+        for attempt in range(6):  # Python on Windows sometimes fails the certificate chain lookup; just retry
+            try:
+                with urllib.request.urlopen(req, body) as r:
+                    return json.load(r)
+            except urllib.error.HTTPError:
+                raise
+            except urllib.error.URLError as e:
+                if attempt == 5:
+                    raise
+                time.sleep(3)
     except urllib.error.HTTPError as e:
         if e.code == 404 and method == "GET":
             return None
