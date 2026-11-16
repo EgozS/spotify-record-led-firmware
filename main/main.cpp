@@ -40,13 +40,14 @@
 struct Level { uint8_t brightness; uint8_t scale; };
 static const int kStage2[] = {1, 2, 3, 4, 6, 8, 11, 16, 23, 32, 45, 64, 91, 128, 181, 255};
 static const int kStage1Count = 19;                                   // scale 5..241 @ brightness 1
-// Highest usable entry of kStage2. Index 11 = brightness 64. Brighter levels (91, 128...) draw more
+// Highest usable entry of kStage2. Index 9 = brightness 32. Brighter levels (45, 64, 91, 128...) draw more
 // current than the panel's 5V supply/wiring delivers: the voltage sags, blues and greens fade first and
-// the picture turns oversaturated and warm (at the extreme, red). Raise it (max 15) only after giving
-// the panel its own beefy 5V supply wired directly to its power terminals.
-static const int kMaxStage2Index = 11;
+// the picture turns oversaturated and warm (at the extreme, red). Tested on the real panel: 64 is still a
+// little saturated, 32 looks right. Raise it (max 15) only after giving the panel its own beefy 5V supply
+// wired directly to its power terminals.
+static const int kMaxStage2Index = 9;
 static const int kNumLevels = 1 + kStage1Count + kMaxStage2Index + 1;
-// Start at the maximum level (brightness 64); the knob only goes down from here.
+// Start at the maximum level (brightness 32); the knob only goes down from here.
 static const int kStartLevel = 1 + kStage1Count + kMaxStage2Index;
 
 static Level level_at(int idx) {
